@@ -101,7 +101,7 @@ class Simulator:
         for i in range(size):
             self.memory[address+i] = (value >> 8*i) & 0xff
 
-    def get_rigister(self,value):
+    def get_register(self,value):
         return self.reg_map(value,0)
 
     def execute_halt(self):
@@ -116,8 +116,8 @@ class Simulator:
         second = head & 0xf
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_rigister(reg >> 4)
-        rB = self.get_rigister(reg & 0xf)
+        rA = self.get_register(reg >> 4)
+        rB = self.get_register(reg & 0xf)
         if second == 0:
             self.registers[rB] = self.registers[rA]
         elif second == 1:  #le
@@ -144,15 +144,15 @@ class Simulator:
     def execute_irmovq(self):
 
         reg = self.read_byte(self.PC + 1)
-        rB = self.get_rigister(reg & 0xf)
+        rB = self.get_register(reg & 0xf)
         value = self.read_word(self.PC + 2 , 8)
         self.registers[rB] = value
 
     def execute_rmmovq(self):
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_rigister(reg >> 4)
-        rB = self.get_rigister(reg & 0xf)
+        rA = self.get_register(reg >> 4)
+        rB = self.get_register(reg & 0xf)
         
         offset = self.read_word(self.pc + 2, 8)
 
@@ -160,13 +160,41 @@ class Simulator:
         base_addr = self.registers(rB)
         addr = base_addr + offset
 
-        self.write_word
+        self.write_word(addr,reg_value,8)
+
+        self.PC += 10
         
     def execute_mrmovq(self):
-        pass
+
+        reg = self.read_byte(self.PC + 1)
+        rA = self.get_register(reg >> 4)
+        rB = self.get_register(reg & 0xf)
+        
+        offset = self.read_word(self.pc + 2, 8)
+
+        base_addr = self.registers(rA)
+        reg_value = self.registers(rB)
+        addr = base_addr + offset
+
+        self.write_word(addr,reg_value,8)
+
+        self.PC += 10
 
     def execute_calc(self):
-        pass
+
+        head = self.read_byte(self.PC)
+        second = head & 0xf
+
+        reg = self.read_byte(self.PC + 1)
+        rA = self.get_register(reg >> 4)
+        rB = self.get_register(reg & 0xf)
+
+        if second == 0:
+            rA_value = self.registers(rA)
+            rB_value = self.registers(rB)
+            sum_value = rA_value + rB_value
+            self.registers(rB) = sum_value
+        
 
     def execute_jump(self):
         pass
