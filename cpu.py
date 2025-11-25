@@ -115,9 +115,9 @@ class Simulator:
         head = self.read_byte(self.PC)
         second = head & 0xf
 
-        rig = self.read_byte(self.PC + 1)
-        rA = self.get_rigister(rig >> 4)
-        rB = self.get_rigister(rig & 0xf)
+        reg = self.read_byte(self.PC + 1)
+        rA = self.get_rigister(reg >> 4)
+        rB = self.get_rigister(reg & 0xf)
         if second == 0:
             self.registers[rB] = self.registers[rA]
         elif second == 1:  #le
@@ -139,12 +139,28 @@ class Simulator:
             if self.SF == self.OF and self.ZF == 0:
                 self.registers[rB] = self.registers[rA]
 
+        self.PC += 2
 
     def execute_irmovq(self):
-        
+
+        reg = self.read_byte(self.PC + 1)
+        rB = self.get_rigister(reg & 0xf)
+        value = self.read_word(self.PC + 2 , 8)
+        self.registers[rB] = value
 
     def execute_rmmovq(self):
-        pass
+
+        reg = self.read_byte(self.PC + 1)
+        rA = self.get_rigister(reg >> 4)
+        rB = self.get_rigister(reg & 0xf)
+        
+        offset = self.read_word(self.pc + 2, 8)
+
+        reg_value = self.registers(rA)
+        base_addr = self.registers(rB)
+        addr = base_addr + offset
+
+        self.write_word
         
     def execute_mrmovq(self):
         pass
