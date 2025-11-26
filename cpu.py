@@ -102,7 +102,7 @@ class Simulator:
             self.memory[address+i] = (value >> 8*i) & 0xff
 
     def get_register(self,value):
-        return self.reg_map(value,0)
+        return self.reg_map[value]
 
     def execute_halt(self):
         self.stat = 2
@@ -148,16 +148,18 @@ class Simulator:
         value = self.read_word(self.PC + 2 , 8)
         self.registers[rB] = value
 
+        self.PC += 10
+
     def execute_rmmovq(self):
 
         reg = self.read_byte(self.PC + 1)
         rA = self.get_register(reg >> 4)
         rB = self.get_register(reg & 0xf)
         
-        offset = self.read_word(self.pc + 2, 8)
+        offset = self.read_word(self.PC + 2, 8)
 
-        reg_value = self.registers(rA)
-        base_addr = self.registers(rB)
+        reg_value = self.registers[rA]
+        base_addr = self.registers[rB]
         addr = base_addr + offset
 
         self.write_word(addr,reg_value,8)
@@ -170,10 +172,10 @@ class Simulator:
         rA = self.get_register(reg >> 4)
         rB = self.get_register(reg & 0xf)
         
-        offset = self.read_word(self.pc + 2, 8)
+        offset = self.read_word(self.PC + 2, 8)
 
-        base_addr = self.registers(rA)
-        reg_value = self.registers(rB)
+        base_addr = self.registers[rA]
+        reg_value = self.registers[rB]
         addr = base_addr + offset
 
         self.write_word(addr,reg_value,8)
@@ -188,27 +190,118 @@ class Simulator:
         reg = self.read_byte(self.PC + 1)
         rA = self.get_register(reg >> 4)
         rB = self.get_register(reg & 0xf)
+        rA_value = self.registers[rA]
+        rB_value = self.registers[rB]
 
-        if second == 0:
-            rA_value = self.registers(rA)
-            rB_value = self.registers(rB)
+        if second == 0:  #addq
+            
             sum_value = rA_value + rB_value
-            self.registers(rB) = sum_value
+            self.registers[rB] = sum_value
+            #更新条件码
+            self.ZF = 1 if sum_value == 0 else 0
+            self.SF = 1 if (sum_value & 0x8000000000000000) != 0 else 0
+            self.OF = 1 if (rA_value < 0 and rB_value < 0 and sum_value > 0) or \
+                           (rA_value > 0 and rB_value > 0 and sum_value < 0) else 0
+        elif second == 1:  #subq
+
+            sub_value = rB_value - rA_value
+            self.registers[rB] = sub_value
+            #更新条件码
+            self.ZF = 1 if sub_value == 0 else 0
+            self.SF = 1 if (sub_value & 0x8000000000000000) != 0 else 0
+            self.OF = 1 if (rA_value < 0 and rB_value > 0 and sum_value < 0) or \
+                           (rA_value > 0 and rB_value < 0 and sum_value > 0) else 0
+        elif second == 2:  #andq
+
+            and_value = rA_value & rB_value
+            self.registers[rB] = and_value
+            #更新条件码
+            self.ZF = 1 if and_value == 0 else 0
+            self.SF = 1 if (and_value & 0x8000000000000000) != 0 else 0
+            self.OF = 0
+        elif second == 3:  #xorq
+
+            xor_value = rA_value ^ rB_value
+            self.registers[rB] = xor_value
+            #更新条件码
+            self.ZF = 1 if xor_value == 0 else 0
+            self.SF = 1 if (xor_value & 0x8000000000000000) != 0 else 0
+            self.OF = 0
+
+        self.PC += 2
         
 
     def execute_jump(self):
-        pass
+
+        head = self.read_byte(self.PC)
+        second = head & 0xf
+
+        addr = self.read_word(self.PC + 1,8)
+
+        if second == 0:  #jmp
+            self.PC = addr
+        elif second == 1:  #jle
+            if self.SF != self.OF or self.ZF == 1:
+                self.PC = addr
+            else:
+                self.PC += 9
+        elif second == 2:  #jl
+            if self.SF != self.OF:
+                self.PC = addr
+            else:
+                self.PC += 9
+        elif second == 3:  #je
+            if self.ZF == 1:
+                self.PC = addr
+            else:
+                self.PC += 9
+        elif second == 4:  #jne
+            if self.ZF == 0:
+                self.PC = addr
+            else:
+                self.PC += 9
+        elif second == 5:  #jge
+            if self.SF == self.OF:
+                self.PC = addr
+            else:
+                self.PC += 9
+        elif second == 6:  #jg
+            if self.SF == self.OF and self.ZF == 0:
+                self.PC = addr
+            else:
+                self.PC += 9
+        
 
     def execute_callq(self):
-        pass
+
+        target_addr = self.read_word(self.PC + 1)
+        next_addr = self.PC + 9
+
+        rsp_value = self.registers["rsp"]
+        new_rsp = rsp_value - 8
+        
+        self.write_word(new_rsp,next_addr,8)
+        self.registers["rsp"] = new_rsp
+
+        self.PC = target_addr
+        
 
     def execute_ret(self):
-        pass
+        
+        rsp_value = self.registers["rsp"]
+        ret_addr = self.read_word(rsp_value,8)
+
+        new_rsp = rsp_value + 8
+        self.registers["rsp"] = new_rsp
+
+        self.PC = ret_addr
+
+
 
     def execute_pushq(self):
         pass
 
-    def execute_popq(self,second):
+    def execute_popq(self):
         pass
 
     def run(self):
