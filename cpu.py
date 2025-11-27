@@ -83,7 +83,7 @@ class Simulator:
 
     def read_byte(self,address):
 
-        return self.memory(address,0)
+        return self.memory.get(address,0) #?
 
     def read_word(self, address, size=8):
         
@@ -299,10 +299,24 @@ class Simulator:
 
 
     def execute_pushq(self):
-        pass
+        reg_byte = self.read_byte(self.PC + 1)
+        rA = self.get_register(reg_byte >> 4)  
+        value = self.registers[rA]
+        rsp_value = self.registers["rsp"]
+        new_rsp = rsp_value - 8
+        self.registers["rsp"] = new_rsp #先移动，再赋值
+        self.write_word(new_rsp, value) #默认值8，栈操作默认是8字节
+        self.PC += 2
 
     def execute_popq(self):
-        pass
+        reg_byte = self.read_byte(self.PC + 1)
+        rA = self.get_register(reg_byte >> 4)  # 高4位是寄存器编号
+        rsp_value = self.registers["rsp"]
+        value = self.read_word(rsp_value)
+        new_rsp = rsp_value + 8
+        self.registers[rA] = value
+        self.registers["rsp"] = new_rsp #先赋值，再移动栈帧
+        self.PC += 2
 
     def run(self):
         pass
