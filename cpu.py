@@ -175,10 +175,10 @@ class Simulator:
         offset = self.read_word(self.PC + 2, 8)
 
         base_addr = self.registers[rA]
-        reg_value = self.registers[rB]
         addr = base_addr + offset
 
-        self.write_word(addr,reg_value,8)
+        value = self.read_word(addr,8)
+        self.registers[rB] = value
 
         self.PC += 10
 
