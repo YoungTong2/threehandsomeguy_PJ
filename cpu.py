@@ -76,7 +76,7 @@ class Simulator:
         #从PC读取头一个byte
         try:
             head = self.memory[self.PC]  # 直接访问，如果不存在会抛出KeyError
-            first = head >> 4
+            first = (head >> 4) & 0xf
             
             self.head_map[first]()  
 
@@ -95,7 +95,8 @@ class Simulator:
         for i in range(size):
             byte_val = self.read_byte(address + i)
             value |= (byte_val << (i * 8))
-        return value
+        
+        return value & 0xFFFFFFFFFFFFFFFF
 
     def write_byte(self,address,value):
         self.memory[address] = value & 0xff
@@ -119,7 +120,7 @@ class Simulator:
         second = head & 0xf
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg >> 4)
+        rA = self.get_register((reg >> 4) & 0xf)
         rB = self.get_register(reg & 0xf)
         if second == 0:
             self.registers[rB] = self.registers[rA]
@@ -149,21 +150,21 @@ class Simulator:
         reg = self.read_byte(self.PC + 1)
         rB = self.get_register(reg & 0xf)
         value = self.read_word(self.PC + 2 , 8)
-        self.registers[rB] = value
+        self.registers[rB] = value & 0xFFFFFFFFFFFFFFFF
 
         self.PC += 10
 
     def execute_rmmovq(self):
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg >> 4)
+        rA = self.get_register((reg >> 4) & 0xf)
         rB = self.get_register(reg & 0xf)
         
         offset = self.read_word(self.PC + 2, 8)
 
         reg_value = self.registers[rA]
         base_addr = self.registers[rB]
-        addr = base_addr + offset
+        addr = (base_addr + offset) & 0xFFFFFFFFFFFFFFFF
 
         self.write_word(addr,reg_value,8)
 
@@ -172,13 +173,13 @@ class Simulator:
     def execute_mrmovq(self):
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg >> 4)
+        rA = self.get_register((reg >> 4) & 0xf)
         rB = self.get_register(reg & 0xf)
         
         offset = self.read_word(self.PC + 2, 8)
 
         base_addr = self.registers[rB]
-        addr = base_addr + offset
+        addr = (base_addr + offset) & 0xFFFFFFFFFFFFFFFF
 
         value = self.read_word(addr,8)
         self.registers[rA] = value
@@ -191,14 +192,14 @@ class Simulator:
         second = head & 0xf
 
         reg = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg >> 4)
+        rA = self.get_register((reg >> 4) & 0xf)
         rB = self.get_register(reg & 0xf)
         rA_value = self.registers[rA]
         rB_value = self.registers[rB]
 
         if second == 0:  #addq
             
-            sum_value = rA_value + rB_value
+            sum_value = (rA_value + rB_value) & 0xFFFFFFFFFFFFFFFF
             self.registers[rB] = sum_value
             #更新条件码
             self.ZF = 1 if sum_value == 0 else 0
@@ -207,7 +208,7 @@ class Simulator:
                            (rA_value > 0 and rB_value > 0 and sum_value < 0) else 0
         elif second == 1:  #subq
 
-            sub_value = rB_value - rA_value
+            sub_value = (rB_value - rA_value) & 0xFFFFFFFFFFFFFFFF
             self.registers[rB] = sub_value
             #更新条件码
             self.ZF = 1 if sub_value == 0 else 0
@@ -281,12 +282,15 @@ class Simulator:
         next_addr = self.PC + 9
 
         rsp_value = self.registers["rsp"]
-        new_rsp = rsp_value - 8
-        
-        self.write_word(new_rsp,next_addr,8)
+        new_rsp = (rsp_value - 8) & 0xFFFFFFFFFFFFFFFF
         self.registers["rsp"] = new_rsp
+        if new_rsp & 0x8000000000000000 != 0:
+            self.stat = 3
+        else:
+        
+            self.write_word(new_rsp,next_addr,8)
 
-        self.PC = target_addr
+            self.PC = target_addr
         
 
     def execute_ret(self):
@@ -294,7 +298,7 @@ class Simulator:
         rsp_value = self.registers["rsp"]
         ret_addr = self.read_word(rsp_value,8)
 
-        new_rsp = rsp_value + 8
+        new_rsp = (rsp_value + 8) & 0xFFFFFFFFFFFFFFFF
         self.registers["rsp"] = new_rsp
 
         self.PC = ret_addr
@@ -304,27 +308,38 @@ class Simulator:
     def execute_pushq(self):
 
         reg_byte = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg_byte >> 4)  
+        rA = self.get_register((reg_byte >> 4) & 0xf)  
         value = self.registers[rA]
         rsp_value = self.registers["rsp"]
 
-        new_rsp = rsp_value - 8
+        new_rsp = (rsp_value - 8) & 0xFFFFFFFFFFFFFFFF
         self.registers["rsp"] = new_rsp #先移动，再赋值
-        self.write_word(new_rsp, value) #默认值8，栈操作默认是8字节
+        if new_rsp & 0x8000000000000000 != 0:
+            self.stat = 3
+        else:
 
-        self.PC += 2
+            self.write_word(new_rsp, value) #默认值8，栈操作默认是8字节
+
+            self.PC += 2
 
     def execute_popq(self):
         reg_byte = self.read_byte(self.PC + 1)
-        rA = self.get_register(reg_byte >> 4)  # 高4位是寄存器编号
+        rA = self.get_register((reg_byte >> 4) & 0xf)  
 
         rsp_value = self.registers["rsp"]
         value = self.read_word(rsp_value)
-        new_rsp = rsp_value + 8
-        self.registers[rA] = value
-        self.registers["rsp"] = new_rsp #先赋值，再移动栈帧
+        new_rsp = (rsp_value + 8) & 0xFFFFFFFFFFFFFFFF
 
+        self.registers["rsp"] = new_rsp #先赋值，再移动栈帧
+        self.registers[rA] = value
         self.PC += 2
+
+    #将64位无符号整数转换为有符号整数
+    def to_signed(self, value):
+        
+        if value & 0x8000000000000000:
+            return value - 0x10000000000000000
+        return value
 
     def save_states(self):
         #符号码
@@ -339,22 +354,31 @@ class Simulator:
         processed_blocks = set()
 
         for mem_byte in mem_bytes:
+
             mem_byte_head = mem_byte - (mem_byte % 8)  #找到每8个字节的头字节
             if mem_byte_head not in processed_blocks:
                 value = 0
+                processed_blocks.add(mem_byte_head)
                 for i in range(8):
                     new_value = self.memory.get(mem_byte_head + i,0) #小端法
                     value |= (new_value << 8*i)
                 if value:  #只存储非0值
-                    mem_state[mem_byte_head] = value
-                    processed_blocks.add(mem_byte_head)
-        
+                    # 转换为有符号表示
+                    signed_value = self.to_signed(value)
+                    signed_mem_byte_head = self.to_signed(mem_byte_head)
+                    mem_state[signed_mem_byte_head] = signed_value
+                    
+        # 寄存器状态（按字母顺序排序并转换为有符号）
+        reg_state = {}
+        for reg_name in sorted(self.registers.keys()):
+            reg_state[reg_name] = self.to_signed(self.registers[reg_name])
+
         #本次指令结束后所有部分的状态
         all_state = {
             "CC": CC,
             "MEM": mem_state,
             "PC": self.PC,
-            "REG": self.registers.copy(),
+            "REG": reg_state,
             "STAT": self.stat
         }
         self.states.append(all_state)
