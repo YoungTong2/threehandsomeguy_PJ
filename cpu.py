@@ -321,19 +321,24 @@ class Simulator:
             self.write_word(new_rsp, value) #默认值8，栈操作默认是8字节
 
             self.PC += 2
-
+    
     def execute_popq(self):
         reg_byte = self.read_byte(self.PC + 1)
         rA = self.get_register((reg_byte >> 4) & 0xf)  
 
         rsp_value = self.registers["rsp"]
         value = self.read_word(rsp_value)
+
         new_rsp = (rsp_value + 8) & 0xFFFFFFFFFFFFFFFF
-
-        self.registers["rsp"] = new_rsp #先赋值，再移动栈帧
-        self.registers[rA] = value
+        
+        if rA != "rsp":
+            self.registers[rA] = value  
+            self.registers["rsp"] = new_rsp #正常逻辑：先赋值，再移动栈帧
+        else:
+            self.registers[rA] = value #罕见逻辑：若popq rsp,则只把值赋给rsp,不进行额外的栈指针的移动
+              
         self.PC += 2
-
+    
     #将64位无符号整数转换为有符号整数
     def to_signed(self, value):
         
